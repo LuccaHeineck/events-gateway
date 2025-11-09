@@ -18,7 +18,8 @@ public class ProxyController {
     @RequestMapping(
             value = {"/usuarios/**",
                     "/auth/**",
-                    "/eventos/**"},
+                    "/eventos/**",
+                    "/send-email"},
             method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE}
     )
     public Mono<String> proxy(ServerHttpRequest request,

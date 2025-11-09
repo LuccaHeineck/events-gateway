@@ -22,6 +22,9 @@ public class ProxyService {
     @Value("${auth.service.url}")
     private String authServiceUrl;
 
+    @Value("${email.service.url}")
+    private String emailServiceUrl;
+
     @Value("${event.service.url}")
     private String eventServiceUrl;
 
@@ -36,6 +39,8 @@ public class ProxyService {
             targetBaseUrl = userServiceUrl;
         } else if (path.startsWith("auth")) {
             targetBaseUrl = authServiceUrl;
+        } else if (path.startsWith("send-email")) {
+            targetBaseUrl = emailServiceUrl;
         } else if (path.startsWith("eventos")) {
             targetBaseUrl = eventServiceUrl;
         } else {
