@@ -16,18 +16,14 @@ public class ProxyController {
     }
 
     @RequestMapping(
-            value = {"/usuarios/**",
-                    "/auth/**",
-                    "/eventos/**",
-                    "/send-email"},
-            method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE}
+            value = {"/usuarios/**", "/auth/**", "/eventos/**", "/send-email"},
+            method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE},
+            produces = "application/json"
     )
     public Mono<String> proxy(ServerHttpRequest request,
                               @RequestBody(required = false) Mono<String> body) {
-        // Extrai caminho sem o primeiro / -> "usuarios/editar"
-        String path = request.getURI().getPath().substring(1);
 
-        // Envia method, path, headers, and body para ProxyService
+        String path = request.getURI().getPath().substring(1);
         return proxyService.forward(path, request.getMethod(), request.getHeaders(), body);
     }
 }
