@@ -10,7 +10,6 @@ import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 import org.springframework.http.HttpHeaders;
 
-
 @Service
 public class ProxyService {
 
@@ -27,6 +26,10 @@ public class ProxyService {
 
     @Value("${event.service.url}")
     private String eventServiceUrl;
+
+    // Chave secreta compartilhada entre o Gateway e o serviço de e-mail
+    @Value("${gateway.secret}")
+    private String gatewaySecret;
 
     public ProxyService(WebClient webClient) {
         this.webClient = webClient;
@@ -52,9 +55,16 @@ public class ProxyService {
 
         System.out.println("TARGET: " + targetUrl);
 
+        // Cria a requisição para o microserviço alvo
         WebClient.RequestBodySpec spec = webClient.method(method)
                 .uri(targetUrl)
-                .headers(h -> h.addAll(headers));
+                .headers(h -> {
+                    h.addAll(headers);
+                    // Adiciona o header secreto APENAS quando a requisição for para o serviço de e-mail
+                    if (path.startsWith("send-email")) {
+                        h.add("X-Gateway-Key", gatewaySecret);
+                    }
+                });
 
         if (method == HttpMethod.POST || method == HttpMethod.PUT) {
             spec.body(body, String.class);
