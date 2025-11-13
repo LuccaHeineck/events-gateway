@@ -18,9 +18,6 @@ public class ProxyService {
     @Value("${user.service.url}")
     private String userServiceUrl;
 
-    @Value("${auth.service.url}")
-    private String authServiceUrl;
-
     @Value("${email.service.url}")
     private String emailServiceUrl;
 
@@ -41,7 +38,7 @@ public class ProxyService {
         if (path.startsWith("usuarios")) {
             targetBaseUrl = userServiceUrl;
         } else if (path.startsWith("auth")) {
-            targetBaseUrl = authServiceUrl;
+            targetBaseUrl = userServiceUrl;
         } else if (path.startsWith("send-email")) {
             targetBaseUrl = emailServiceUrl;
         } else if (path.startsWith("eventos")) {
@@ -50,17 +47,14 @@ public class ProxyService {
             return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Rota de serviço desconhecida"));
         }
 
-        String relativePath = path.substring(path.indexOf('/') + 1);
-        String targetUrl = targetBaseUrl + "/" + relativePath;
+        String targetUrl = targetBaseUrl + "/" + path;
 
         System.out.println("TARGET: " + targetUrl);
 
-        // Cria a requisição para o microserviço alvo
         WebClient.RequestBodySpec spec = webClient.method(method)
                 .uri(targetUrl)
                 .headers(h -> {
                     h.addAll(headers);
-                    // Adiciona o header secreto APENAS quando a requisição for para o serviço de e-mail
                     if (path.startsWith("send-email")) {
                         h.add("X-Gateway-Key", gatewaySecret);
                     }
