@@ -55,9 +55,7 @@ public class ProxyService {
                 .uri(targetUrl)
                 .headers(h -> {
                     h.addAll(headers);
-                    if (path.startsWith("send-email")) {
-                        h.add("X-Gateway-Key", gatewaySecret);
-                    }
+                    h.add("X-Gateway-Key", gatewaySecret);
                 });
 
         if (method == HttpMethod.POST || method == HttpMethod.PUT) {
