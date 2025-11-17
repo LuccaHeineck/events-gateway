@@ -16,7 +16,11 @@ public class ProxyController {
     }
 
     @RequestMapping(
-            value = {"/usuarios/**", "/auth/**", "/eventos/**", "/send-email"},
+            value = {"/usuarios/**",
+                    "/auth/**",
+                    "/eventos/**",
+                    "/inscricoes/**",
+                    "/send-email"},
             method = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE},
             produces = "application/json"
     )
