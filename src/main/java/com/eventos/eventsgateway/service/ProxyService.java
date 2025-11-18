@@ -9,6 +9,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.*;
 
 import java.util.Map;
 
@@ -26,6 +27,9 @@ public class ProxyService {
     @Value("${event.service.url}")
     private String eventServiceUrl;
 
+    @Value("${certificates.service.url}")
+    private String certificatesServiceUrl;
+
     @Value("${gateway.secret}")
     private String gatewaySecret;
 
@@ -35,7 +39,7 @@ public class ProxyService {
         this.webClient = webClient;
     }
 
-    public Mono<String> forward(String path, HttpMethod method, HttpHeaders headers, Mono<String> body) {
+    public Mono<ResponseEntity<?>> forward(String path, HttpMethod method, HttpHeaders headers, Mono<String> body) {
 
         this.currentMethod = method;
 
@@ -51,6 +55,8 @@ public class ProxyService {
             targetBaseUrl = eventServiceUrl;
         } else if (path.startsWith("send-email")) {
             targetBaseUrl = emailServiceUrl;
+        } else if (path.startsWith("certificados")) {
+            targetBaseUrl = certificatesServiceUrl;
         } else {
             return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Rota de serviço desconhecida"));
         }
@@ -70,16 +76,43 @@ public class ProxyService {
             spec.body(body, String.class);
         }
 
-        return spec.retrieve()
-                .onStatus(HttpStatusCode::isError, response ->
-                        Mono.error(new ResponseStatusException(response.statusCode(), "Erro no serviço alvo"))
-                )
-                .bodyToMono(String.class)
-                .flatMap(responseBody ->
-                        executePostActionEmail(path, responseBody)
-                                .thenReturn(responseBody)
-                );
+        // ← troca fundamental: usar exchangeToMono porque retrieve() só trata JSON/texto
+        return spec.exchangeToMono(clientResponse -> {
+
+            // Pegar o content-type real retornado pelo serviço
+            String contentType = clientResponse.headers().asHttpHeaders()
+                    .getFirst("Content-Type");
+
+            // Retorno é PDF → responder como binário
+            if (contentType != null && contentType.contains("application/pdf")) {
+
+                HttpHeaders responseHeaders = clientResponse.headers().asHttpHeaders();
+
+                return clientResponse.bodyToMono(byte[].class)
+                        .flatMap(bytes -> {
+
+                            return executePostActionEmail(path, "OK")
+                                    .thenReturn(
+                                            ResponseEntity.ok()
+                                                    .headers(responseHeaders)
+                                                    .body(bytes)
+                                    );
+                        });
+            }
+
+            // Caso normal (JSON / texto)
+            return clientResponse.bodyToMono(String.class)
+                    .flatMap(text -> {
+                        return executePostActionEmail(path, text)
+                                .thenReturn(
+                                        ResponseEntity.status(clientResponse.statusCode())
+                                                .contentType(clientResponse.headers().contentType().orElse(null))
+                                                .body(text)
+                                );
+                    });
+        });
     }
+
 
     private Mono<Void> executePostActionEmail(String path, String responseBody) {
 
