@@ -64,8 +64,6 @@ public class ProxyService {
 
         String targetUrl = targetBaseUrl + "/" + path;
 
-        System.out.println("TARGET: " + targetUrl);
-
         WebClient.RequestBodySpec spec = webClient.method(method)
                 .uri(targetUrl)
                 .headers(h -> {
@@ -82,7 +80,6 @@ public class ProxyService {
             String contentType = clientResponse.headers().asHttpHeaders()
                     .getFirst("Content-Type");
 
-            // Retorno é PDF → responder como binário
             if (contentType != null && contentType.contains("application/pdf")) {
 
                 HttpHeaders responseHeaders = clientResponse.headers().asHttpHeaders();
@@ -143,92 +140,55 @@ public class ProxyService {
             String email = userNode.path("email").asText(null);
             String userName = userNode.path("nome").asText(null);
 
-            if (email == null || userName == null) {
+            if (email == null || userName == null || eventId == null) {
                 return Mono.empty();
             }
 
-            // POST /inscricoes
+            // Mensagens de e-mail aprimoradas
+            String subject;
+            String body;
+
             if (path.equals("inscricoes") && methodIs(HttpMethod.POST)) {
 
-                if (eventId == null) {
-                    return Mono.empty();
-                }
+                subject = "Inscrição confirmada";
+                body =
+                        "Olá " + userName + ",\n\n" +
+                                "Sua inscrição foi registrada com sucesso.\n\n" +
+                                "Detalhes da inscrição:\n" +
+                                "- ID do Evento: " + eventId + "\n" +
+                                "- Status: Confirmado\n\n" +
+                                "Guarde este e-mail para referência futura. Caso precise acessar o evento, realizar check-in ou emitir certificados, este ID poderá ser importante.\n\n" +
+                                "Atenciosamente,\nSistema de Eventos";
 
-                return webClient.get()
-                        .uri(eventServiceUrl + "/eventos/" + eventId)
-                        .header("X-Gateway-Key", gatewaySecret)
-                        .retrieve()
-                        .bodyToMono(String.class)
-                        .flatMap(eventResponse -> {
-                            try {
-                                JsonNode eventJson = objectMapper.readTree(eventResponse);
-                                String eventName = eventJson.path("data").path("nome").asText("");
-
-                                String subject = "Inscrição realizada";
-                                String body = "Olá " + userName + ",\n\n"
-                                        + "Sua inscrição no evento '" + eventName + "' foi registrada com sucesso.";
-
-                                return sendEmail(email, subject, body);
-                            } catch (Exception e) {
-                                return Mono.empty();
-                            }
-                        });
+                return sendEmail(email, subject, body);
             }
 
-            // PUT /inscricoes/{id} (cancelamento)
             if (path.matches("inscricoes/[0-9]+") && methodIs(HttpMethod.PUT)) {
 
-                if (eventId == null) {
-                    return Mono.empty();
-                }
+                subject = "Inscrição cancelada";
+                body =
+                        "Olá " + userName + ",\n\n" +
+                                "A inscrição vinculada ao evento abaixo foi cancelada.\n\n" +
+                                "Detalhes:\n" +
+                                "- ID do Evento: " + eventId + "\n" +
+                                "- Situação: Cancelada\n\n" +
+                                "Atenciosamente,\nSistema de Eventos";
 
-                return webClient.get()
-                        .uri(eventServiceUrl + "/eventos/" + eventId)
-                        .header("X-Gateway-Key", gatewaySecret)
-                        .retrieve()
-                        .bodyToMono(String.class)
-                        .flatMap(eventResponse -> {
-                            try {
-                                JsonNode eventJson = objectMapper.readTree(eventResponse);
-                                String eventName = eventJson.path("data").path("nome").asText("");
-
-                                String subject = "Inscrição cancelada";
-                                String body = "Olá " + userName + ",\n\n"
-                                        + "Sua inscrição no evento '" + eventName + "' foi cancelada.";
-
-                                return sendEmail(email, subject, body);
-                            } catch (Exception e) {
-                                return Mono.empty();
-                            }
-                        });
+                return sendEmail(email, subject, body);
             }
 
-            // POST /inscricoes/{id}/checkin
             if (path.matches("inscricoes/[0-9]+/checkin") && methodIs(HttpMethod.POST)) {
 
-                if (eventId == null) {
-                    return Mono.empty();
-                }
+                subject = "Check-in realizado";
+                body =
+                        "Olá " + userName + ",\n\n" +
+                                "Seu check-in foi concluído com sucesso.\n\n" +
+                                "Detalhes:\n" +
+                                "- ID do Evento: " + eventId + "\n" +
+                                "- Status: Presença confirmada\n\n" +
+                                "Atenciosamente,\nSistema de Eventos";
 
-                return webClient.get()
-                        .uri(eventServiceUrl + "/eventos/" + eventId)
-                        .header("X-Gateway-Key", gatewaySecret)
-                        .retrieve()
-                        .bodyToMono(String.class)
-                        .flatMap(eventResponse -> {
-                            try {
-                                JsonNode eventJson = objectMapper.readTree(eventResponse);
-                                String eventName = eventJson.path("data").path("nome").asText("");
-
-                                String subject = "Check-in realizado";
-                                String body = "Olá " + userName + ",\n\n"
-                                        + "Seu check-in no evento '" + eventName + "' foi confirmado.";
-
-                                return sendEmail(email, subject, body);
-                            } catch (Exception e) {
-                                return Mono.empty();
-                            }
-                        });
+                return sendEmail(email, subject, body);
             }
 
         } catch (Exception e) {
