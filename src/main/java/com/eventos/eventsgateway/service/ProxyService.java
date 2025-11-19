@@ -1,9 +1,10 @@
 package com.eventos.eventsgateway.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ResponseStatusException;
@@ -76,10 +77,8 @@ public class ProxyService {
             spec.body(body, String.class);
         }
 
-        // ← troca fundamental: usar exchangeToMono porque retrieve() só trata JSON/texto
         return spec.exchangeToMono(clientResponse -> {
 
-            // Pegar o content-type real retornado pelo serviço
             String contentType = clientResponse.headers().asHttpHeaders()
                     .getFirst("Content-Type");
 
@@ -100,7 +99,6 @@ public class ProxyService {
                         });
             }
 
-            // Caso normal (JSON / texto)
             return clientResponse.bodyToMono(String.class)
                     .flatMap(text -> {
                         return executePostActionEmail(path, text)
@@ -113,36 +111,134 @@ public class ProxyService {
         });
     }
 
+    private boolean methodIs(HttpMethod method) {
+        return this.currentMethod == method;
+    }
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private Mono<Void> executePostActionEmail(String path, String responseBody) {
+        try {
+            JsonNode json = objectMapper.readTree(responseBody);
 
-        // POST /inscricoes → inscrever
-        if (path.equals("inscricoes") && methodIs(HttpMethod.POST)) {
-            return sendEmail("Inscrição realizada", "Sua inscrição foi registrada.");
-        }
+            JsonNode data = json.path("data");
+            JsonNode userNode = null;
+            Integer eventId = null;
 
-        // PUT /inscricoes/{id} → cancelar
-        if (path.matches("inscricoes/[0-9]+") && methodIs(HttpMethod.PUT)) {
-            return sendEmail("Inscrição cancelada", "Sua inscrição foi cancelada.");
-        }
+            if (data.has("user")) {
+                userNode = data.path("user");
+                eventId = data.path("id_evento").asInt();
+            }
 
-        // POST /inscricoes/{id}/checkin → confirmar presença
-        if (path.matches("inscricoes/[0-9]+/checkin") && methodIs(HttpMethod.POST)) {
-            return sendEmail("Presença confirmada", "Sua presença foi confirmada.");
+            if (data.has("subscription")) {
+                JsonNode sub = data.path("subscription");
+                userNode = sub.path("user");
+                eventId = sub.path("id_evento").asInt();
+            }
+
+            if (userNode == null || userNode.isMissingNode()) {
+                return Mono.empty();
+            }
+
+            String email = userNode.path("email").asText(null);
+            String userName = userNode.path("nome").asText(null);
+
+            if (email == null || userName == null) {
+                return Mono.empty();
+            }
+
+            // POST /inscricoes
+            if (path.equals("inscricoes") && methodIs(HttpMethod.POST)) {
+
+                if (eventId == null) {
+                    return Mono.empty();
+                }
+
+                return webClient.get()
+                        .uri(eventServiceUrl + "/eventos/" + eventId)
+                        .header("X-Gateway-Key", gatewaySecret)
+                        .retrieve()
+                        .bodyToMono(String.class)
+                        .flatMap(eventResponse -> {
+                            try {
+                                JsonNode eventJson = objectMapper.readTree(eventResponse);
+                                String eventName = eventJson.path("data").path("nome").asText("");
+
+                                String subject = "Inscrição realizada";
+                                String body = "Olá " + userName + ",\n\n"
+                                        + "Sua inscrição no evento '" + eventName + "' foi registrada com sucesso.";
+
+                                return sendEmail(email, subject, body);
+                            } catch (Exception e) {
+                                return Mono.empty();
+                            }
+                        });
+            }
+
+            // PUT /inscricoes/{id} (cancelamento)
+            if (path.matches("inscricoes/[0-9]+") && methodIs(HttpMethod.PUT)) {
+
+                if (eventId == null) {
+                    return Mono.empty();
+                }
+
+                return webClient.get()
+                        .uri(eventServiceUrl + "/eventos/" + eventId)
+                        .header("X-Gateway-Key", gatewaySecret)
+                        .retrieve()
+                        .bodyToMono(String.class)
+                        .flatMap(eventResponse -> {
+                            try {
+                                JsonNode eventJson = objectMapper.readTree(eventResponse);
+                                String eventName = eventJson.path("data").path("nome").asText("");
+
+                                String subject = "Inscrição cancelada";
+                                String body = "Olá " + userName + ",\n\n"
+                                        + "Sua inscrição no evento '" + eventName + "' foi cancelada.";
+
+                                return sendEmail(email, subject, body);
+                            } catch (Exception e) {
+                                return Mono.empty();
+                            }
+                        });
+            }
+
+            // POST /inscricoes/{id}/checkin
+            if (path.matches("inscricoes/[0-9]+/checkin") && methodIs(HttpMethod.POST)) {
+
+                if (eventId == null) {
+                    return Mono.empty();
+                }
+
+                return webClient.get()
+                        .uri(eventServiceUrl + "/eventos/" + eventId)
+                        .header("X-Gateway-Key", gatewaySecret)
+                        .retrieve()
+                        .bodyToMono(String.class)
+                        .flatMap(eventResponse -> {
+                            try {
+                                JsonNode eventJson = objectMapper.readTree(eventResponse);
+                                String eventName = eventJson.path("data").path("nome").asText("");
+
+                                String subject = "Check-in realizado";
+                                String body = "Olá " + userName + ",\n\n"
+                                        + "Seu check-in no evento '" + eventName + "' foi confirmado.";
+
+                                return sendEmail(email, subject, body);
+                            } catch (Exception e) {
+                                return Mono.empty();
+                            }
+                        });
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
         return Mono.empty();
     }
 
-    private boolean methodIs(HttpMethod m) {
-        return currentMethod == m;
-    }
-
-    // Enviar email
-    private Mono<Void> sendEmail(String subject, String body) {
-
-        String to = "usuario@teste.com"; // Ajustável futuramente
-
+    private Mono<Void> sendEmail(String to, String subject, String body) {
         Map<String, Object> emailPayload = Map.of(
                 "to", to,
                 "subject", subject,
