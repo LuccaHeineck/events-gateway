@@ -29,7 +29,9 @@ public class ProxyController {
                                          @RequestBody(required = false) Mono<String> body) {
 
         String path = request.getURI().getPath().substring(1);
+        String query = request.getURI().getRawQuery();
+        String fullPath = (query != null && !query.isEmpty()) ? path + "?" + query : path;
 
-        return proxyService.forward(path, request.getMethod(), request.getHeaders(), body);
+        return proxyService.forward(fullPath, request.getMethod(), request.getHeaders(), body);
     }
 }
