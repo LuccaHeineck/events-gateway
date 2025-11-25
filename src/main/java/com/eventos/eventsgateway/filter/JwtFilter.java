@@ -1,6 +1,7 @@
 package com.eventos.eventsgateway.filter;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -10,7 +11,9 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 @Component
+@Order(2)
 public class JwtFilter implements WebFilter {
+
 
     @Value("${jwt.secret}")
     private String jwtSecret;

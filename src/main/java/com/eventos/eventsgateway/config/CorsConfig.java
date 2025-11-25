@@ -1,10 +1,12 @@
 package com.eventos.eventsgateway.config;
 
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.web.reactive.config.CorsRegistry;
 import org.springframework.web.reactive.config.WebFluxConfigurer;
 
 @Configuration
+@Order(0)
 public class CorsConfig implements WebFluxConfigurer {
 
     @Override
