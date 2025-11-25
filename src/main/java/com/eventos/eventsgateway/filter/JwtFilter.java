@@ -22,6 +22,10 @@ public class JwtFilter implements WebFilter {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
 
+        if (exchange.getRequest().getMethod().name().equalsIgnoreCase("OPTIONS")) {
+            return chain.filter(exchange);
+        }
+
         String path = exchange.getRequest().getPath().value();
 
         // Rotas públicas
