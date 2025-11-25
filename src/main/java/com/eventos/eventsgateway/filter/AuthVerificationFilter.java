@@ -26,12 +26,11 @@ public class AuthVerificationFilter implements WebFilter {
 
         String path = exchange.getRequest().getPath().value();
 
-        if (path.startsWith("/auth")) {
+        if (path.startsWith("/auth") || path.equals("/health")) {
             return chain.filter(exchange);
         }
 
         String authHeader = exchange.getRequest().getHeaders().getFirst("Authorization");
-
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return unauthorized(exchange);
         }
@@ -44,6 +43,7 @@ public class AuthVerificationFilter implements WebFilter {
                 .then(chain.filter(exchange))
                 .onErrorResume(e -> unauthorized(exchange));
     }
+
 
     private Mono<Void> unauthorized(ServerWebExchange exchange) {
         exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
