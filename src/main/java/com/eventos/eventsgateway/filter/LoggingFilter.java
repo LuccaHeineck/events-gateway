@@ -18,7 +18,13 @@ public class LoggingFilter implements WebFilter {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-        logger.info("Request: {} {}", exchange.getRequest().getMethod(), exchange.getRequest().getURI());
+        String path = exchange.getRequest().getURI().getPath();
+
+        if ("/health".equals(path)) {
+            return chain.filter(exchange);
+        }
+
+        logger.info("Request: {} {}", exchange.getRequest().getMethod(), path);
         exchange.getRequest().getHeaders()
                 .forEach((key, value) -> logger.info("{}: {}", key, value));
 
